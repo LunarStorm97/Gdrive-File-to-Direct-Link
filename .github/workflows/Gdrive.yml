@@ -18,28 +18,40 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4.2.2
 
-    - name: Getting tools ready 
+    - name: Getting tools ready
       run: |
-        pip install gdown 
-        python3 convertor.py ${{ github.event.inputs.FILE_LINK }} > link.txt
-        echo "FILE_ID=$(<link.txt)" >> $GITHUB_ENV
-    
-    - name: Downloading file from Gdrive
+        pip install gdown
+        echo "Checking if the link is a Google Drive link"
+        if [[ "${{ github.event.inputs.FILE_LINK }}" =~ ^https://drive.google.com/ ]]; then
+          python3 convertor.py ${{ github.event.inputs.FILE_LINK }} > link.txt
+          echo "FILE_ID=$(<link.txt)" >> $GITHUB_ENV
+        fi
+
+    - name: Downloading file from Gdrive or other sources
       run: |
         mkdir Gdrive && cd Gdrive
-        gdown https://drive.google.com/uc?id=${{ env.FILE_ID }}
+        if [[ "${{ github.event.inputs.FILE_LINK }}" =~ ^https://drive.google.com/ ]]; then
+          echo "Downloading from Google Drive"
+          gdown https://drive.google.com/uc?id=${{ env.FILE_ID }}
+        else
+          echo "Downloading from external source using wget"
+          wget ${{ github.event.inputs.FILE_LINK }}
+        fi
+
         for filename in $(ls)
         do
-        echo "FILE_NAME=$filename" >> $GITHUB_ENV
-        done;
+          echo "FILE_NAME=$filename" >> $GITHUB_ENV
+        done
+
     - name: Check file size
       run: |
         if [[ $(stat -c '%s' *.*) -gt 2147483648 ]]; then
-        echo "The File is larger than 2GB"
-        cd Exit
+          echo "The File is larger than 2GB"
+          exit 1
         else
-        echo "File is smaller than or equal to 2GB"
+          echo "File is smaller than or equal to 2GB"
         fi
+
     - name: Set Build Date 
       run: |
         echo "BUILD_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
@@ -52,3 +64,4 @@ jobs:
         name: ${{ env.FILE_NAME }} // ${{ env.BUILD_DATE }}
         tag_name: ${{ github.run_id }}
         body: |
+        
